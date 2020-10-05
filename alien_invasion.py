@@ -84,6 +84,9 @@ class AlienInvasion:
 			#reset the game statistics
 			self.stats.reset_stats()
 			self.stats.game_active = True
+			self.sb.prep_score()
+			self.sb.prep_level()
+			self.sb.prep_ships()
 			"""get rid of remaining aliens and bullets"""
 			self.aliens.empty()
 			self.bullets.empty()
@@ -126,11 +129,17 @@ class AlienInvasion:
 		self._check_bullet_alien_collisions()
 		"""check for any bullets that have hit aliens
 		if so, get rid of the bullet and the alien"""
-		collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True )
+		
 		
 
 	def _check_bullet_alien_collisions(self):
 		"""respond to bullet-alien collisions"""
+		collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True )
+		if collisions:
+			for aliens in collisions.values():
+				self.stats.score += self.settings.alien_points
+			self.sb.prep_score()
+			self.sb.check_high_score()
 		#remove and bullets and aliens that have collided
 		for bullet in self.bullets.copy():
 		 	if bullet.rect.bottom <= 0:
@@ -141,11 +150,16 @@ class AlienInvasion:
 			self._create_fleet()
 			self.settings.increase_speed()
 
+			#increase level
+			self.stats.level +=1
+			self.sb.prep_level()
+
 	def _ship_hit(self):
 		"""respons to the ship being hit by an alien"""
 		if self.stats.ships_left > 0:
 			#decrement ships left
 			self.stats.ships_left -=1
+			self.sb.prep_ships()
 			#get rid of any remaining bullets and aliens
 			self.aliens.empty()
 			self.bullets.empty()
