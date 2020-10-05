@@ -4,6 +4,9 @@ from settings import Settings
 from ship import Ship
 from bullet import Bullet
 from aliens import Alien
+from time import sleep
+from game_stats import GameStats
+from button import Button
 
 class AlienInvasion:
 	"""Overall class to manage game assets and behavior"""
@@ -15,10 +18,13 @@ class AlienInvasion:
 		self.screen = pygame.display.set_mode((self.settings.screen_width,
 			self.settings.screen_height))
 		pygame.display.set_caption("Alien Invasion")
+		self.stats = GameStats(self)
 		self.ship = Ship(self)
 		self.bullets = pygame.sprite.Group()
 		self.aliens = pygame.sprite.Group()
 		self._create_fleet()
+		#make the play button
+		self.play_button = Button(self, "Play")
 
 
 
@@ -33,17 +39,22 @@ class AlienInvasion:
 		alien.rect.y = alien.rect.height + 2 * alien.rect.height*row_number  
 		self.aliens.add(alien)
 
+	def _check_fleet_edges(self):
+		"""respond if the alien has reached the edge of the screen"""
+		for alien in self.aliens.sprites():
+			if alien.check_edges():
+				self._change_fleet_direction()
+				break
+
+	def _change_fleet_direction(self):
+		"""drop the fleet and change the direction"""
+		for alien in self.aliens.sprites():
+			alien.rect.y += self.settings.fleet_drop_speed
+		self.settings.fleet_direction *=-1
 	#self.aliens.add(alien)
 
 
-	def run_game(self):
-		"""Start the main loop for the game"""
-		while True:
-			#watch for keyboard and mouse events"""
-			self._check_events()
-			self.ship.update()
-			self._update_bullets()
-			self._update_screen()
+	
 
 	def _check_events(self):
 		"""Respond to kep presses and mouse events"""
@@ -84,9 +95,60 @@ class AlienInvasion:
 		#update bullet positions
 		self.bullets.update()
 		#get rid of bullets that have disappeared
+		# 
+		self._check_bullet_alien_collisions()
+		"""check for any bullets that have hit aliens
+		if so, get rid of the bullet and the alien"""
+		collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True )
+		if not self.aliens:
+			#destroy existing bullets and create new fleet
+			self.bullets.empty()
+			self._create_fleet()
+
+	def _check_bullet_alien_collisions(self):
+		"""respond to bullet-alien collisions"""
+		#remove and bullets and aliens that have collided
 		for bullet in self.bullets.copy():
-			if bullet.rect.bottom <= 0:
-				self.bullets.remove(bullet)
+		 	if bullet.rect.bottom <= 0:
+		 		self.bullets.remove(bullet)
+
+	def _ship_hit(self):
+		"""respons to the ship being hit by an alien"""
+		if self.stats.ships_left > 0:
+			#decrement ships left
+			self.stats.ships_left -=1
+			#get rid of any remaining bullets and aliens
+			self.aliens.empty()
+			self.bullets.empty()
+
+			#create a new fleet and center the ship
+			self._create_fleet()
+			self.ship.center_ship()
+
+			#pause
+			sleep(0.5)
+		else:
+			self.stats.game_active = False
+
+	def _check_aliens_bottom(self):
+		"""check if any aliens have reached the bottom of the screen"""
+		screen_rect = self.screen.get_rect()
+		for alien in self.aliens.sprites():
+			if alien.rect.bottom >= screen_rect.bottom:
+				#treat this the same as if the ship got hit
+				self._ship_hit()
+				break
+
+	def _update_aliens(self):
+		"""check if aliens at the edge then 
+		update aliens positions of the whole fleet"""
+		self._check_fleet_edges()
+		self.aliens.update()
+		#look for alien-ship collisions
+		if pygame.sprite.spritecollideany(self.ship, self.aliens):
+			self._ship_hit()
+		#look for aliens hitting the bottom of the screen
+		self._check_aliens_bottom()
 	
 	def _create_fleet(self):
 		"""Create the fleet of aliens."""
@@ -119,7 +181,21 @@ class AlienInvasion:
 		for bullet in self.bullets.sprites():
 			bullet.draw_bullet()
 		self.aliens.draw(self.screen)
+		#draw the play button if the game is inactive
+		if not self.stats.game_active:
+			self.play_button.draw_button()
 		pygame.display.flip()
+
+	def run_game(self):
+		"""Start the main loop for the game"""
+		while True:
+			#watch for keyboard and mouse events"""
+			self._check_events()
+			if self.stats.game_active:
+				self.ship.update()
+				self._update_bullets()
+				self._update_aliens()
+			self._update_screen()
 
 if __name__ == '__main__':
 	#Make a game instance, and run the game
